@@ -43,7 +43,10 @@ const Register = () => {
 
     try {
       // Matches the RegisterSerializer logic in backend/apps/accounts/serializers.py
-      await axios.post("http://127.0.0.1:8000/api/auth/register/", formData);
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/auth/register/`,
+        formData,
+      );
       alert("Registration successful! Please login.");
       navigate("/login");
     } catch (err) {

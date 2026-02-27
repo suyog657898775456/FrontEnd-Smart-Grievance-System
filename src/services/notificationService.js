@@ -13,7 +13,7 @@ export const markAsRead = async (id) => {
 export const markAllAsReadFront = async (unreadNotifications) => {
   try {
     const promises = unreadNotifications.map((n) =>
-      API.post(`notifications/${n.id}/read/`)
+      API.post(`notifications/${n.id}/read/`),
     );
 
     await Promise.all(promises);
