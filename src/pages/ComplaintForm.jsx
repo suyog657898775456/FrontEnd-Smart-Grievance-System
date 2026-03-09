@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import SpeechRecognition, {
   useSpeechRecognition,
 } from "react-speech-recognition";
+import API from "../services/api";
 
 const ComplaintForm = () => {
   const navigate = useNavigate();
@@ -12,24 +12,23 @@ const ComplaintForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const API_URL = "http://127.0.0.1:8000/api/grievances/citizen/";
-
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     location: null,
   });
 
-  // ---------------- IMAGE ----------------
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setImage(file);
+
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+
       setImagePreview(URL.createObjectURL(file));
     }
   };
 
-  // ---------------- GPS ----------------
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -42,18 +41,20 @@ const ComplaintForm = () => {
             },
           }));
         },
-        () => alert("Location is mandatory. Please enable GPS permissions."),
+        (err) => {
+          console.error("GPS Error:", err);
+          alert("Location is mandatory for reporting. Please enable GPS.");
+        },
+        { enableHighAccuracy: true },
       );
     }
   }, []);
 
-  // ---------------- SUBMIT ----------------
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!image) return alert("Please upload a photo of the issue.");
-    if (!formData.location)
-      return alert("Waiting for location. Please wait a moment.");
+    if (!formData.location) return alert("Waiting for GPS location...");
 
     setIsSubmitting(true);
 
@@ -64,25 +65,27 @@ const ComplaintForm = () => {
     data.append("latitude", formData.location.lat);
     data.append("longitude", formData.location.lng);
 
-    const token = localStorage.getItem("access");
-
     try {
-      await axios.post(API_URL, data, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // ✅ Updated endpoint according to backend API
+      await API.post("grievances/citizen/", data);
 
       setIsSuccess(true);
       setTimeout(() => navigate("/user-dashboard"), 2000);
     } catch (error) {
-      console.error("Backend Error Details:", error.response?.data);
-      const errorMsg = error.response?.data
-        ? Object.entries(error.response.data)
-            .map(([key, val]) => `${key}: ${val}`)
-            .join("\n")
-        : "Server unreachable. Make sure the Django server is running.";
+      console.error("Backend Error:", error.response?.data);
+
+      const errorData = error.response?.data;
+      let errorMsg = "Submission failed.";
+
+      if (errorData) {
+        errorMsg =
+          typeof errorData === "object"
+            ? Object.entries(errorData)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join("\n")
+            : errorData;
+      }
+
       alert(errorMsg);
     } finally {
       setIsSubmitting(false);
@@ -98,10 +101,10 @@ const ComplaintForm = () => {
   } = useSpeechRecognition();
 
   const startListening = () => {
-    resetTranscript(); // clear old voice text
+    resetTranscript();
 
     SpeechRecognition.startListening({
-      continuous: false, // ✅ IMPORTANT CHANGE
+      continuous: false,
       language: "en-IN",
     });
   };
@@ -115,7 +118,7 @@ const ComplaintForm = () => {
       title: transcript.split(" ").slice(0, 5).join(" "),
     }));
 
-    SpeechRecognition.stopListening(); // stop mic safely
+    SpeechRecognition.stopListening();
     resetTranscript();
   };
 
@@ -145,7 +148,6 @@ const ComplaintForm = () => {
         onSubmit={handleSubmit}
         className="max-w-md mx-auto bg-white shadow-2xl rounded-[2.5rem] border border-slate-100 overflow-hidden"
       >
-        {/* Header Section */}
         <div className="bg-[#0F2A44] p-8 text-white relative">
           <h2 className="text-2xl font-bold tracking-tight">New Report</h2>
           <p className="text-blue-200 text-sm mt-1 opacity-90">
@@ -164,7 +166,6 @@ const ComplaintForm = () => {
         </div>
 
         <div className="p-8 space-y-6">
-          {/* Issue Title */}
           <div className="group">
             <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Issue Title
@@ -181,7 +182,6 @@ const ComplaintForm = () => {
             />
           </div>
 
-          {/* Detailed Description */}
           <div className="group relative">
             <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Description
@@ -201,7 +201,6 @@ const ComplaintForm = () => {
                 }
               />
 
-              {/* WhatsApp Style Mic Button */}
               <div className="absolute bottom-3 right-3 flex items-center gap-2">
                 {transcript && !listening && (
                   <button
@@ -261,7 +260,6 @@ const ComplaintForm = () => {
               </div>
             </div>
 
-            {/* Status Indicator */}
             {listening && (
               <p className="text-[10px] text-red-500 font-bold mt-2 ml-2 uppercase tracking-tighter">
                 ● Recording Voice...
@@ -269,7 +267,6 @@ const ComplaintForm = () => {
             )}
           </div>
 
-          {/* Photo Evidence */}
           <div className="group">
             <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Evidence Photo
@@ -300,7 +297,6 @@ const ComplaintForm = () => {
             </div>
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={isSubmitting || !formData.location}
